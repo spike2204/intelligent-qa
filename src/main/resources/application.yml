@@ -1,0 +1,129 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: intelligent-qa-system
+  
+  # Database Configuration
+  datasource:
+    # 开发环境使用H2纯内存数据库（重启后数据清空）
+    url: jdbc:h2:mem:qadb;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+    # 生产环境MySQL配置
+    # url: jdbc:mysql://localhost:3306/qa_system?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    # driver-class-name: com.mysql.cj.jdbc.Driver
+    # username: root
+    # password: your_password
+  
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+  
+  # Redis Configuration  
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      # password: your_redis_password
+      timeout: 3000ms
+  
+  # File Upload Configuration
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
+
+# Application Custom Configuration
+app:
+  # 文档存储路径
+  document:
+    storage-path: ./uploads
+    max-file-size: 524288000  # 500MB
+    allowed-types: pdf,md,markdown,txt
+  
+  # 文档切片配置
+  chunking:
+    chunk-size: 500          # 每个块的目标字符数
+    chunk-overlap: 50        # 块之间的重叠字符数
+    min-chunk-size: 100      # 最小块大小
+  
+  # 向量数据库配置
+  vector:
+    # 使用内存向量存储(开发模式)或Milvus
+    type: memory  # memory / milvus
+    milvus:
+      host: localhost
+      port: 19530
+      collection-name: document_chunks
+      dimension: 1536  # Azure Embedding Dimension
+  
+  # Embedding模型配置
+  embedding:
+    type: azure  # mock / dashscope / openai / azure
+    dashscope:
+      api-key: ${DASHSCOPE_API_KEY:}
+      model: text-embedding-v2
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      model: text-embedding-3-small
+    azure:
+      api-key: ${AZURE_OPENAI_API_KEY:}
+      endpoint: https://odm-rag-test.openai.azure.com/openai/deployments/text-embedding-3-small/embeddings?api-version=2024-02-01
+      deployment-name: text-embedding-3-small
+  
+  # LLM配置
+  llm:
+    # 主模型
+    primary:
+      type: azure  # dashscope / zhipu / deepseek / openai / mock / azure
+      api-key: ${AZURE_OPENAI_API_KEY:}
+      model: gpt-4.1
+      endpoint: https://odm-rag-test.openai.azure.com/openai/deployments/gpt-4.1/chat/completions?api-version=2025-01-01-preview
+      timeout: 60000
+      max-tokens: 2048
+    # 备用模型(用于降级)  
+    fallback:
+      type:
+      api-key: ${ZHIPU_API_KEY:}
+      model: glm-4
+      timeout: 60000
+      max-tokens: 2048
+    # 重试配置
+    retry:
+      max-attempts: 3
+      delay-ms: 1000
+      multiplier: 2.0
+  
+  # 上下文管理配置
+  context:
+    max-history-rounds: 10      # 最大保留对话轮数
+    max-context-tokens: 4000    # 最大上下文token数
+    summary-threshold: 6        # 触发摘要的对话轮数
+  
+  # RAG检索配置
+  rag:
+    top-k: 5                    # 检索返回的块数量
+    similarity-threshold: 0.3   # 相似度阈值 (调试时降低)
+    rerank-enabled: false       # 是否启用重排序
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.example.qa: DEBUG
+    org.springframework.web: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
