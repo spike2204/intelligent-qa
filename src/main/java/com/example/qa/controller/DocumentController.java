@@ -18,18 +18,20 @@ import java.util.List;
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*")
 public class DocumentController {
-    
+
     private final DocumentService documentService;
-    
+
     /**
      * 上传文档
      */
     @PostMapping
-    public ResponseEntity<DocumentDto> upload(@RequestParam("file") MultipartFile file) {
-        DocumentDto document = documentService.uploadDocument(file);
+    public ResponseEntity<DocumentDto> upload(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "skipEnrichment", defaultValue = "false") boolean skipEnrichment) {
+        DocumentDto document = documentService.uploadDocument(file, skipEnrichment);
         return ResponseEntity.ok(document);
     }
-    
+
     /**
      * 获取文档列表
      */
@@ -37,7 +39,7 @@ public class DocumentController {
     public ResponseEntity<List<DocumentDto>> list() {
         return ResponseEntity.ok(documentService.listDocuments());
     }
-    
+
     /**
      * 获取文档详情
      */
@@ -45,7 +47,7 @@ public class DocumentController {
     public ResponseEntity<DocumentDto> get(@PathVariable String id) {
         return ResponseEntity.ok(documentService.getDocument(id));
     }
-    
+
     /**
      * 删除文档
      */
@@ -54,7 +56,7 @@ public class DocumentController {
         documentService.deleteDocument(id);
         return ResponseEntity.noContent().build();
     }
-    
+
     /**
      * 获取文档切片列表
      */

@@ -83,10 +83,15 @@ public class PdfDocumentProcessor implements DocumentProcessor {
                 continue;
             }
 
+            // 过滤纯页码 (如 "1", " 45 ", "- 1 -")
+            if (trimmed.matches("^-?\\s*\\d+\\s*-?$")) {
+                continue;
+            }
+
             // 检测一级标题 (如 "3. 进阶要求")
             Matcher headingMatcher = HEADING_PATTERN.matcher(trimmed);
             if (headingMatcher.matches()) {
-                result.append("\n## ").append(trimmed).append("\n\n");
+                result.append("\n\n## ").append(trimmed).append("\n\n");
                 continue;
             }
 
@@ -97,14 +102,15 @@ public class PdfDocumentProcessor implements DocumentProcessor {
                 continue;
             }
 
-            // 检测列表项
+            // 检测列表项 (添加换行以形成宽松列表，提升可读性)
             if (trimmed.startsWith("●") || trimmed.startsWith("•") ||
                     trimmed.startsWith("-") || trimmed.startsWith("○")) {
-                result.append("- ").append(trimmed.substring(1).trim()).append("\n");
+                result.append("\n- ").append(trimmed.substring(1).trim()).append("\n");
                 continue;
             }
 
-            // 普通段落
+            // 普通段落 (与前文隔开，避免紧凑)
+            // 如果只有一行，可能只是普通断行；这里简单处理为追加，依靠前端 breaks: true
             result.append(trimmed).append("\n");
         }
 

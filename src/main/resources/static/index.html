@@ -961,7 +961,7 @@
                     </div>
                 `;
 
-                const doc = await uploadDocument(file);
+                const doc = await uploadDocument(file, true); // 单独引用模式跳过上下文增强，提升速度
                 await pollUntilReady(doc.id);
 
                 // 设置为引用文档（单独引用模式）
@@ -977,7 +977,7 @@
                 await createSessionForDocuments();
 
                 // 显示提示消息
-                addSystemMessage('已切换到单独引用模式，后续问答将仅基于此文档');
+                addSystemMessage('已切换到单独引用模式，后续问答将仅基于此文档 (极速模式)');
             } catch (error) {
                 console.error('拖拽上传失败:', error);
                 alert('上传失败: ' + error.message);
@@ -1050,9 +1050,10 @@
         }
 
         // ========== 工具函数 ==========
-        async function uploadDocument(file) {
+        async function uploadDocument(file, skipEnrichment = false) {
             const formData = new FormData();
             formData.append('file', file);
+            formData.append('skipEnrichment', skipEnrichment);
 
             const response = await fetch(`${API_BASE}/api/documents`, {
                 method: 'POST',
@@ -1297,7 +1298,8 @@
                 const data = await response.json();
                 const markdown = data.content || "*文档内容为空*";
 
-                // 使用 marked 渲染
+                // 使用 marked 渲染 (开启 breaks: true 以保留换行)
+                marked.use({ breaks: true });
                 sourceContent.innerHTML = `
                     <div class="markdown-body" id="markdownViewer">
                         ${marked.parse(markdown)}

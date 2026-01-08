@@ -51,7 +51,7 @@ public class DocumentService {
      * 上传并处理文档
      */
     @Transactional
-    public DocumentDto uploadDocument(MultipartFile file) {
+    public DocumentDto uploadDocument(MultipartFile file, boolean skipEnrichment) {
         validateFile(file);
         System.out.println(file.getOriginalFilename() + "校验成功");
 
@@ -73,9 +73,15 @@ public class DocumentService {
         documentRepository.save(document);
 
         // 异步处理文档
-        processDocumentAsync(documentId, filePath, fileType, filename);
+        processDocumentAsync(documentId, filePath, fileType, filename, skipEnrichment);
 
         return toDto(document);
+    }
+
+    // Overload for backward compatibility if needed, though controller will update
+    @Transactional
+    public DocumentDto uploadDocument(MultipartFile file) {
+        return uploadDocument(file, false);
     }
 
     /**
@@ -83,7 +89,7 @@ public class DocumentService {
      */
     @Async
     public void processDocumentAsync(String documentId, String filePath,
-            String fileType, String filename) {
+            String fileType, String filename, boolean skipEnrichment) {
         try {
             // 1. 解析文档
             DocumentProcessor processor = getProcessor(fileType);
@@ -94,9 +100,15 @@ public class DocumentService {
                 List<ChunkDto> chunks = chunkingService.chunkText(text, documentId);
 
                 // 2.5 【新增】上下文增强 (Contextual Retrieval)
-                if (appProperties.getRag().isContextualRetrievalEnabled()) {
+                if (!skipEnrichment && appProperties.getRag().isContextualRetrievalEnabled()) {
                     log.info("开始上下文增强处理...");
                     chunks = contextualEnrichmentService.enrichChunks(text, chunks);
+                } else {
+                    if (skipEnrichment) {
+                        log.info("跳过上下文增强处理 (用户请求)");
+                    } else {
+                        log.info("跳过上下文增强处理 (配置禁用)");
+                    }
                 }
 
                 // 使用 final 变量以便在 lambda 中使用
