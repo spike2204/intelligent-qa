@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -54,15 +55,20 @@ public class ChatService {
         // 保存用户问题
         contextManager.saveMessage(sessionId, ChatMessage.MessageRole.USER, query);
 
-        // 如果前端没有传递documentId，从session中获取
-        String resolvedDocumentId = resolveDocumentId(sessionId, documentId);
+        // 解析文档ID（可能是多个）
+        List<String> documentIds = resolveDocumentIds(sessionId, documentId);
 
         // RAG检索 (仅当有documentId时)
         String ragContext = "";
         List<CitationDto> citationsList = new ArrayList<>();
 
-        if (resolvedDocumentId != null && !resolvedDocumentId.isEmpty()) {
-            RAGService.RAGResult ragResult = ragService.retrieve(query, resolvedDocumentId);
+        if (!documentIds.isEmpty()) {
+            RAGService.RAGResult ragResult;
+            if (documentIds.size() == 1) {
+                ragResult = ragService.retrieve(query, documentIds.get(0));
+            } else {
+                ragResult = ragService.retrieveMulti(query, documentIds);
+            }
             ragContext = ragResult.getContext();
             citationsList = ragResult.getCitations();
         }
@@ -71,8 +77,8 @@ public class ChatService {
         final List<CitationDto> finalCitations = citationsList;
 
         // 构建LLM请求
-        // 构建LLM请求
-        LLMClient.ChatRequest request = buildRequest(query, sessionId, ragContext, resolvedDocumentId);
+        String firstDocId = documentIds.isEmpty() ? null : documentIds.get(0);
+        LLMClient.ChatRequest request = buildRequest(query, sessionId, ragContext, firstDocId, modelType);
 
         // 流式调用LLM
         LLMClient client = llmRouter.getClient(modelType);
@@ -167,7 +173,7 @@ public class ChatService {
 
         // 构建并发送请求
         // 构建并发送请求
-        LLMClient.ChatRequest request = buildRequest(query, sessionId, ragContext, resolvedDocumentId);
+        LLMClient.ChatRequest request = buildRequest(query, sessionId, ragContext, resolvedDocumentId, modelType);
         LLMClient client = llmRouter.getClient(modelType);
 
         try {
@@ -210,25 +216,41 @@ public class ChatService {
      * 解析documentId - 如果请求中没有传递，则从session中获取
      */
     private String resolveDocumentId(String sessionId, String documentId) {
+        List<String> ids = resolveDocumentIds(sessionId, documentId);
+        return ids.isEmpty() ? null : ids.get(0);
+    }
+
+    /**
+     * 解析多个documentIds - 从session中获取所有文档ID
+     */
+    private List<String> resolveDocumentIds(String sessionId, String documentId) {
         // 如果前端传递了有效的documentId，直接使用
         if (documentId != null && !documentId.isEmpty() && !"null".equalsIgnoreCase(documentId)) {
-            return documentId;
+            return Arrays.asList(documentId.split(","));
         }
 
-        // 否则从session中获取保存的documentId
+        // 否则从session中获取保存的documentIds
         if (sessionId != null) {
             ChatSession session = sessionRepository.findById(sessionId).orElse(null);
-            if (session != null && session.getDocumentId() != null) {
-                log.debug("从session中获取documentId: sessionId={}, documentId={}",
-                        sessionId, session.getDocumentId());
-                return session.getDocumentId();
+            if (session != null && session.getDocumentIds() != null && !session.getDocumentIds().isEmpty()) {
+                String[] ids = session.getDocumentIds().split(",");
+                List<String> result = new ArrayList<>();
+                for (String id : ids) {
+                    String trimmed = id.trim();
+                    if (!trimmed.isEmpty()) {
+                        result.add(trimmed);
+                    }
+                }
+                log.debug("从session中获取documentIds: sessionId={}, documentIds={}", sessionId, result);
+                return result;
             }
         }
 
-        return null;
+        return new ArrayList<>();
     }
 
-    private LLMClient.ChatRequest buildRequest(String query, String sessionId, String ragContext, String documentId) {
+    private LLMClient.ChatRequest buildRequest(String query, String sessionId, String ragContext, String documentId,
+            String modelType) {
         // 获取历史上下文
         int maxContextTokens = appProperties.getContext().getMaxContextTokens();
         List<LLMClient.Message> contextMessages = contextManager.getContextMessages(sessionId, maxContextTokens / 2);
@@ -259,6 +281,7 @@ public class ChatService {
                 .messages(messages)
                 .maxTokens(appProperties.getLlm().getPrimary().getMaxTokens())
                 .temperature(0.7)
+                .modelOverride(modelType) // 传递前端选择的模型
                 .build();
     }
 }

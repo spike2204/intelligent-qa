@@ -46,9 +46,15 @@ public class ChunkingService {
 
         int chunkIndex = 0;
         for (TextSection section : sections) {
+            // 【优化】将标题作为内容的一部分，确保检索时能匹配到标题关键词
+            String contentWithHeading = section.content;
+            if (section.heading != null && !section.heading.isEmpty()) {
+                contentWithHeading = section.heading + "\n\n" + section.content;
+            }
+
             // 对每个章节进行递归字符切片
             List<String> sectionChunks = recursiveCharacterSplit(
-                    section.content, chunkSize, chunkOverlap, minChunkSize);
+                    contentWithHeading, chunkSize, chunkOverlap, minChunkSize);
 
             for (String chunkContent : sectionChunks) {
                 ChunkDto chunk = new ChunkDto();

@@ -58,10 +58,17 @@ public class LLMRouter {
                 });
     }
 
-    private boolean isMatch(LLMClient client, String type) {
+    private boolean isMatch(LLMClient client, String typeOrModel) {
         String className = client.getClass().getSimpleName().toLowerCase();
-        String typeLower = type.toLowerCase();
+        String typeLower = typeOrModel.toLowerCase();
+        String modelName = client.getModelName().toLowerCase();
 
+        // 1. Exact or partial match on model name (e.g. "gpt-4.1", "gpt-5.2")
+        if (modelName.contains(typeLower) || typeLower.contains(modelName)) {
+            return true;
+        }
+
+        // 2. Match by class name / type
         if (className.contains(typeLower))
             return true;
         // Specific mapping
@@ -72,6 +79,8 @@ public class LLMRouter {
         if (typeLower.equals("dashscope") && className.contains("dashscope"))
             return true;
         if (typeLower.equals("mock") && className.contains("mock"))
+            return true;
+        if (typeLower.equals("responses") && className.contains("responses"))
             return true;
 
         return false;

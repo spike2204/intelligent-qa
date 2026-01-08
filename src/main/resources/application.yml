@@ -56,9 +56,9 @@ app:
   
   # 文档切片配置
   chunking:
-    chunk-size: 500          # 每个块的目标字符数
-    chunk-overlap: 50        # 块之间的重叠字符数
-    min-chunk-size: 100      # 最小块大小
+    chunk-size: 1500         # 增大分片以保留完整段落和表格
+    chunk-overlap: 200       # 增大重叠避免信息丢失
+    min-chunk-size: 200      # 最小分片大小
   
   # 向量数据库配置
   vector:
@@ -86,19 +86,22 @@ app:
   
   # LLM配置
   llm:
-    # 主模型
+    # 主模型 - 使用 Azure OpenAI Responses API (gpt-5.2)
     primary:
-      type: azure  # dashscope / zhipu / deepseek / openai / mock / azure
+      type: azure
+      api-type: responses  # 使用 Responses API (适用于 gpt-5.x 系列)
+      api-key: ${AZURE_OPENAI_API_KEY:}
+      model: gpt-5.2-chat
+      endpoint: https://odm-rag-test.openai.azure.com/openai/responses?api-version=2025-04-01-preview
+      timeout: 120000  # gpt-5.x 可能需要更长处理时间
+      max-tokens: 4096  # gpt-5.x 支持更大的输出
+    # 备用模型 (这里我们用它来配置 GPT-4.1)
+    fallback:
+      type: gpt-4.1  # 使用模型名称匹配，确保 LLMRouter 不会再次返回 Primary
+      api-type: chat
       api-key: ${AZURE_OPENAI_API_KEY:}
       model: gpt-4.1
       endpoint: https://odm-rag-test.openai.azure.com/openai/deployments/gpt-4.1/chat/completions?api-version=2025-01-01-preview
-      timeout: 60000
-      max-tokens: 2048
-    # 备用模型(用于降级)  
-    fallback:
-      type:
-      api-key: ${ZHIPU_API_KEY:}
-      model: glm-4
       timeout: 60000
       max-tokens: 2048
     # 重试配置
@@ -115,8 +118,13 @@ app:
   
   # RAG检索配置
   rag:
-    top-k: 5                    # 检索返回的块数量
-    similarity-threshold: 0.3   # 相似度阈值 (调试时降低)
+    top-k: 10
+    similarity-threshold: 0.6
+    max-tokens: 2000
+    # 启用上下文增强 (Contextual Retrieval)
+    contextual-retrieval-enabled: true
+    # 小文档阈值 (chunk数量)
+    small-document-threshold: 99999 # 实际上由于我们要保存所有文档全文，这个阈值可以设大一点或者在代码里忽略
     rerank-enabled: false       # 是否启用重排序
 
 # Logging

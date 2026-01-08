@@ -23,4 +23,5 @@ public class DocumentDto {
     private Document.DocumentStatus status;
     private Integer chunkCount;
     private LocalDateTime createdAt;
+    private String fullText; // 文档全文 (Markdown)
 }

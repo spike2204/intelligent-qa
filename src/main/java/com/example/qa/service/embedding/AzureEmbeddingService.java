@@ -49,6 +49,50 @@ public class AzureEmbeddingService implements EmbeddingService {
 
     @Override
     public List<float[]> embedBatch(List<String> texts) {
+        // Azure embedding API has 8192 token limit
+        // Chinese text: ~1.5-2 tokens per char, so limit to ~2000 chars per batch
+        final int MAX_CHARS_PER_BATCH = 2000;
+        final int MAX_CHARS_PER_TEXT = 1500; // 单个文本最大字符数
+
+        List<float[]> allEmbeddings = new ArrayList<>();
+        List<String> currentBatch = new ArrayList<>();
+        int currentBatchChars = 0;
+
+        for (String text : texts) {
+            // 截断过长的单个文本
+            String processedText = text;
+            if (text.length() > MAX_CHARS_PER_TEXT) {
+                processedText = text.substring(0, MAX_CHARS_PER_TEXT);
+                log.warn("文本过长，已截断: {}... (原长度: {})",
+                        processedText.substring(0, Math.min(50, processedText.length())), text.length());
+            }
+
+            int textChars = processedText.length();
+
+            // If adding this text would exceed limit, process current batch first
+            if (!currentBatch.isEmpty() && currentBatchChars + textChars > MAX_CHARS_PER_BATCH) {
+                allEmbeddings.addAll(embedBatchInternal(currentBatch));
+                currentBatch = new ArrayList<>();
+                currentBatchChars = 0;
+            }
+
+            currentBatch.add(processedText);
+            currentBatchChars += textChars;
+        }
+
+        // Process remaining batch
+        if (!currentBatch.isEmpty()) {
+            allEmbeddings.addAll(embedBatchInternal(currentBatch));
+        }
+
+        log.info("Embedding完成: 总文本={}, 分批处理", texts.size());
+        return allEmbeddings;
+    }
+
+    /**
+     * 实际调用Azure API进行embedding
+     */
+    private List<float[]> embedBatchInternal(List<String> texts) {
         try {
             String apiKey = appProperties.getEmbedding().getAzure().getApiKey();
             String endpoint = appProperties.getEmbedding().getAzure().getEndpoint();

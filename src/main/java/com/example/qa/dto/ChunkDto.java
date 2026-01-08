@@ -17,6 +17,7 @@ public class ChunkDto {
     private Integer endPage;
     private String heading;
     private String hierarchy;
+    private String contextPrefix;
     private int tokenCount;
     private Map<String, Object> metadata;
 }

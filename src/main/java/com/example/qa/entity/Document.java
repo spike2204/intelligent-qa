@@ -11,47 +11,50 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "documents")
 public class Document {
-    
+
     @Id
     @Column(length = 36)
     private String id;
-    
+
     @Column(nullable = false)
     private String filename;
-    
+
     @Column(name = "file_type", length = 20)
     private String fileType;
-    
+
     @Column(name = "file_size")
     private Long fileSize;
-    
+
     @Column(name = "file_path", length = 500)
     private String filePath;
-    
+
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private DocumentStatus status = DocumentStatus.UPLOADING;
-    
+
     @Column(name = "chunk_count")
     private Integer chunkCount = 0;
-    
+
+    @Column(name = "full_text", columnDefinition = "TEXT")
+    private String fullText; // 存储完整文档内容，用于小文档直接模式
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
-    
+
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-    
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
-    
+
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
-    
+
     public enum DocumentStatus {
         UPLOADING, PROCESSING, READY, FAILED
     }

@@ -9,8 +9,10 @@ import com.example.qa.exception.DocumentProcessException;
 import com.example.qa.repository.DocumentChunkRepository;
 import com.example.qa.repository.DocumentRepository;
 import com.example.qa.service.document.ChunkingService;
+import com.example.qa.service.document.ContextualEnrichmentService;
 import com.example.qa.service.document.DocumentProcessor;
 import com.example.qa.service.embedding.EmbeddingService;
+import com.example.qa.service.retrieval.BM25Service;
 import com.example.qa.service.vector.VectorStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,11 +39,13 @@ public class DocumentService {
 
     private final List<DocumentProcessor> processors;
     private final ChunkingService chunkingService;
+    private final ContextualEnrichmentService contextualEnrichmentService;
     private final EmbeddingService embeddingService;
     private final VectorStore vectorStore;
     private final DocumentRepository documentRepository;
     private final DocumentChunkRepository chunkRepository;
     private final AppProperties appProperties;
+    private final BM25Service bm25Service;
 
     /**
      * 上传并处理文档
@@ -89,21 +93,39 @@ public class DocumentService {
                 // 2. 切片
                 List<ChunkDto> chunks = chunkingService.chunkText(text, documentId);
 
+                // 2.5 【新增】上下文增强 (Contextual Retrieval)
+                if (appProperties.getRag().isContextualRetrievalEnabled()) {
+                    log.info("开始上下文增强处理...");
+                    chunks = contextualEnrichmentService.enrichChunks(text, chunks);
+                }
+
+                // 使用 final 变量以便在 lambda 中使用
+                final List<ChunkDto> finalChunks = chunks;
+                final int chunkCount = finalChunks.size();
+
                 // 3. 保存切片到数据库
-                List<DocumentChunk> entities = saveChunks(chunks, filename);
+                List<DocumentChunk> entities = saveChunks(finalChunks, filename);
 
                 // 4. 向量化并存入向量库
-                vectorizeAndStore(chunks, filename);
+                vectorizeAndStore(finalChunks, filename);
 
-                // 5. 更新文档状态
+                // 5. 【新增】建立BM25索引
+                indexBM25(documentId, finalChunks, filename);
+
+                // 6. 更新文档状态
+                final String fullText = text; // capture for lambda
+
                 documentRepository.findById(documentId).ifPresent(doc -> {
                     doc.setStatus(Document.DocumentStatus.READY);
-                    doc.setChunkCount(chunks.size());
+                    doc.setChunkCount(chunkCount);
+                    // 始终保存完整文本，用于前端全文展示和定位
+                    doc.setFullText(fullText);
+                    log.info("文档处理完成: 保存完整文本 (len={})", fullText.length());
                     documentRepository.save(doc);
                 });
 
                 log.info("文档处理完成: id={}, filename={}, chunks={}",
-                        documentId, filename, chunks.size());
+                        documentId, filename, chunkCount);
             }
 
         } catch (Exception e) {
@@ -127,13 +149,15 @@ public class DocumentService {
             entity.setStartPage(dto.getStartPage());
             entity.setEndPage(dto.getEndPage());
             entity.setTokenCount(dto.getTokenCount());
+            entity.setContextPrefix(dto.getContextPrefix());
             return chunkRepository.save(entity);
         }).collect(Collectors.toList());
     }
 
     private void vectorizeAndStore(List<ChunkDto> chunks, String filename) {
+        // 使用增强后的内容进行 embedding（如果有上下文前缀）
         List<String> contents = chunks.stream()
-                .map(ChunkDto::getContent)
+                .map(chunk -> contextualEnrichmentService.getEnrichedContent(chunk))
                 .collect(Collectors.toList());
 
         List<float[]> embeddings = embeddingService.embedBatch(contents);
@@ -162,6 +186,34 @@ public class DocumentService {
     }
 
     /**
+     * 建立BM25关键词索引
+     */
+    private void indexBM25(String documentId, List<ChunkDto> chunks, String filename) {
+        List<BM25Service.ChunkData> chunkDataList = chunks.stream()
+                .map(chunk -> {
+                    Map<String, Object> metadata = new HashMap<>();
+                    metadata.put("filename", filename);
+                    metadata.put("chunkIndex", chunk.getChunkIndex());
+                    metadata.put("heading", chunk.getHeading());
+                    metadata.put("hierarchy", chunk.getHierarchy());
+                    metadata.put("startPage", chunk.getStartPage());
+
+                    // 使用增强后的内容进行 BM25 索引
+                    String contentToIndex = contextualEnrichmentService.getEnrichedContent(chunk);
+
+                    return BM25Service.ChunkData.builder()
+                            .id(chunk.getId())
+                            .content(contentToIndex)
+                            .metadata(metadata)
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        bm25Service.indexChunks(documentId, chunkDataList);
+        log.info("BM25索引建立完成: documentId={}, chunks={}", documentId, chunks.size());
+    }
+
+    /**
      * 获取文档信息
      */
     public DocumentDto getDocument(String id) {
@@ -186,6 +238,8 @@ public class DocumentService {
     public void deleteDocument(String id) {
         // 删除向量
         vectorStore.deleteByDocumentId(id);
+        // 删除BM25索引
+        bm25Service.deleteByDocumentId(id);
         // 删除切片
         chunkRepository.deleteByDocumentId(id);
         // 删除文档
@@ -278,6 +332,7 @@ public class DocumentService {
                 .status(entity.getStatus())
                 .chunkCount(entity.getChunkCount())
                 .createdAt(entity.getCreatedAt())
+                .fullText(entity.getFullText())
                 .build();
     }
 }

@@ -40,6 +40,9 @@ public class DocumentChunk {
     @Column(name = "token_count")
     private Integer tokenCount;
 
+    @Column(name = "context_prefix", length = 1000)
+    private String contextPrefix;
+
     @Column(name = "vector_id", length = 36)
     private String vectorId;
 

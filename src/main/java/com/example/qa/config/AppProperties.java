@@ -84,6 +84,7 @@ public class AppProperties {
         @Data
         public static class ModelConfig {
             private String type = "mock";
+            private String apiType = "chat"; // chat (传统) 或 responses (新版API)
             private String apiKey;
             private String model;
             private String endpoint; // Azure OpenAI Endpoint
@@ -112,5 +113,7 @@ public class AppProperties {
         private int topK = 5;
         private double similarityThreshold = 0.7;
         private boolean rerankEnabled = false;
+        private boolean contextualRetrievalEnabled = false; // 上下文增强开关
+        private int smallDocumentThreshold = 10; // 小于此切片数量时使用直接模式
     }
 }

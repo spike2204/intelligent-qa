@@ -10,7 +10,6 @@ import okhttp3.sse.EventSource;
 import okhttp3.sse.EventSourceListener;
 import okhttp3.sse.EventSources;
 
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 
@@ -26,19 +25,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Azure OpenAI LLM Client
  */
 @Slf4j
-@Component
 public class AzureOpenAILLMClient implements LLMClient {
 
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
-    private final AppProperties appProperties;
+    private final AppProperties.LlmConfig.ModelConfig modelConfig;
     private final AtomicBoolean available = new AtomicBoolean(true);
 
-    public AzureOpenAILLMClient(AppProperties appProperties) {
-        this.appProperties = appProperties;
+    public AzureOpenAILLMClient(AppProperties.LlmConfig.ModelConfig modelConfig) {
+        this.modelConfig = modelConfig;
         this.objectMapper = new ObjectMapper();
 
-        int timeout = appProperties.getLlm().getPrimary().getTimeout();
+        int timeout = modelConfig.getTimeout();
         this.httpClient = new OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(timeout, TimeUnit.MILLISECONDS)
@@ -48,11 +46,11 @@ public class AzureOpenAILLMClient implements LLMClient {
 
     @Override
     public String getModelName() {
-        return appProperties.getLlm().getPrimary().getModel();
+        return modelConfig.getModel();
     }
 
     private String getEndpoint() {
-        return appProperties.getLlm().getPrimary().getEndpoint();
+        return modelConfig.getEndpoint();
     }
 
     @Override
@@ -60,7 +58,7 @@ public class AzureOpenAILLMClient implements LLMClient {
         return Flux.create(sink -> {
             try {
                 String requestBody = buildRequestBody(request, true);
-                String apiKey = appProperties.getLlm().getPrimary().getApiKey();
+                String apiKey = modelConfig.getApiKey();
                 // User provided curl uses "Authorization: Bearer", but standard Azure Key uses
                 // "api-key".
                 // Since the key is provided directly (7T0H...), we will use "api-key" header as
@@ -92,7 +90,7 @@ public class AzureOpenAILLMClient implements LLMClient {
     public String chat(ChatRequest request) {
         try {
             String requestBody = buildRequestBody(request, false);
-            String apiKey = appProperties.getLlm().getPrimary().getApiKey();
+            String apiKey = modelConfig.getApiKey();
 
             Request httpRequest = new Request.Builder()
                     .url(getEndpoint())
@@ -130,7 +128,7 @@ public class AzureOpenAILLMClient implements LLMClient {
         body.put("model", getModelName());
         body.put("stream", stream);
         body.put("max_completion_tokens", request.getMaxTokens() > 0 ? request.getMaxTokens()
-                : appProperties.getLlm().getPrimary().getMaxTokens());
+                : modelConfig.getMaxTokens());
         body.put("temperature", request.getTemperature() > 0 ? request.getTemperature() : 1.0);
         body.put("top_p", 1);
         body.put("frequency_penalty", 0);

@@ -14,8 +14,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CitationDto {
     private String chunkId;
+    private String documentId; // 新增文档ID字段
     private String documentName;
     private Integer pageNumber;
-    private String excerpt;
+    private String excerpt; // 原始内容截取
+    private String summary; // LLM 生成的摘要
     private Double score;
 }

@@ -26,7 +26,6 @@ public class InMemoryVectorStore implements VectorStore {
 
     @Override
     public List<SearchResult> search(float[] queryVector, int topK, Map<String, Object> filter) {
-        String documentIdFilter = filter != null ? (String) filter.get("documentId") : null;
 
         String hierarchyFilter = filter != null ? (String) filter.get("hierarchy") : null;
 
@@ -42,9 +41,20 @@ public class InMemoryVectorStore implements VectorStore {
 
         List<SearchResult> results = storage.values().stream()
                 .filter(doc -> {
-                    // Document ID Filter
-                    if (documentIdFilter != null && !documentIdFilter.equals(doc.getDocumentId())) {
-                        return false;
+                    // Document ID Filter (Single or List)
+                    Object docIdFilter = filter != null ? filter.get("documentId") : null;
+                    if (docIdFilter != null) {
+                        if (docIdFilter instanceof String) {
+                            if (!docIdFilter.equals(doc.getDocumentId())) {
+                                return false;
+                            }
+                        } else if (docIdFilter instanceof List) {
+                            @SuppressWarnings("unchecked")
+                            List<String> docIds = (List<String>) docIdFilter;
+                            if (!docIds.contains(doc.getDocumentId())) {
+                                return false;
+                            }
+                        }
                     }
                     // Hierarchy Filter (Prefix Match)
                     if (hierarchyFilter != null) {

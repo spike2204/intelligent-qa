@@ -37,3 +37,10 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### Local Config (contains secrets) ###
+application-local.yml
+**/application-local.yml
+
+### User Uploads ###
+uploads/

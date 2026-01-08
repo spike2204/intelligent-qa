@@ -12,27 +12,27 @@ import java.util.List;
  * LLM客户端接口
  */
 public interface LLMClient {
-    
+
     /**
      * 获取模型名称
      */
     String getModelName();
-    
+
     /**
      * 流式对话
      */
     Flux<String> streamChat(ChatRequest request);
-    
+
     /**
      * 同步对话
      */
     String chat(ChatRequest request);
-    
+
     /**
      * 健康检查
      */
     boolean isAvailable();
-    
+
     /**
      * 聊天请求
      */
@@ -45,8 +45,9 @@ public interface LLMClient {
         private List<Message> messages;
         private int maxTokens;
         private double temperature;
+        private String modelOverride; // 可选：覆盖默认模型（如 gpt-4.1, gpt-5.1）
     }
-    
+
     /**
      * 消息
      */
@@ -55,7 +56,7 @@ public interface LLMClient {
     @NoArgsConstructor
     @AllArgsConstructor
     class Message {
-        private String role;  // system, user, assistant
+        private String role; // system, user, assistant
         private String content;
     }
 }
